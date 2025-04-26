@@ -2,10 +2,12 @@ import mysql.connector
 import bcrypt
 import jwt
 import datetime
-from flask import Flask, request, jsonify
-
+from flask import Flask, request, jsonify, session
+app = Flask(__name__)
 SECRET_KEY = "secret123"
 
+if __name__ == "__main__":
+    app.run(debug=True)
 # Connexion à la base de données
 def database():
     return mysql.connector.connect(
@@ -30,7 +32,7 @@ def generate_token(user_id, role):
         SECRET_KEY, algorithm="HS256"
     )
 
-app = Flask(__name__)
+
 
 @app.route('/inscription_client', methods=['POST'])
 def inscription_client():
@@ -232,6 +234,8 @@ def mdp_oublie_vendeur():
     finally:
         cursor.close()
         conn.close()
+
+
 
 if __name__ == '__main__':
     app.run(debug=True)

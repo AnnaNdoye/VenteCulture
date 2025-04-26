@@ -1,12 +1,11 @@
-from flask import Blueprint, request, jsonify
 from database import database, hash_password, generate_token
 from flask_cors import CORS
-from flask import Flask, request, jsonify
 from database import connexion_client, connexion_vendeur, generate_token
-from flask import Blueprint, request, jsonify, redirect, url_for
+from flask import Blueprint, request, jsonify, redirect, url_for, session
 
 routes = Blueprint('routes', __name__)
 CORS(routes)
+
 
 @routes.route('/inscription_client', methods=['POST'])
 def inscription_client():
@@ -29,7 +28,7 @@ def inscription_client():
             return jsonify({"message": "Email ou nom d'utilisateur déjà utilisé"}), 400
 
         cursor.execute("INSERT INTO client (username, nom, email, mot_de_passe) VALUES (%s, %s, %s, %s)",
-                       (username, nom, email, mot_de_passe))
+                        (username, nom, email, mot_de_passe))
         conn.commit()
 
         cursor.execute("SELECT id FROM client WHERE email = %s", (email,))
@@ -69,7 +68,7 @@ def inscription_vendeur():
             return jsonify({"message": "Email ou nom d'utilisateur déjà utilisé"}), 400
 
         cursor.execute("INSERT INTO vendeur (username, nom, email, mot_de_passe, description) VALUES (%s, %s, %s, %s, %s)",
-                       (username, nom, email, mot_de_passe, description))
+                        (username, nom, email, mot_de_passe, description))
         conn.commit()
 
         cursor.execute("SELECT id FROM vendeur WHERE email = %s", (email,))
@@ -100,7 +99,10 @@ def connexion_client_route():
 
     if client_id:
         token = generate_token(client_id, "client")
-        return jsonify({"message": "Connexion réussie", "token": token, "redirect": "PageClient"}), 200
+        session["user_id"] = client_id
+        session["username"] = username
+        session["role"] = "client"
+        return jsonify({"message": "Connexion réussie", "token": token, "redirect": "/page_client"}), 200
     else:
         return jsonify({"message": "Identifiants incorrects"}), 401
 
@@ -119,6 +121,14 @@ def connexion_vendeur_route():
 
     if vendeur_id:
         token = generate_token(vendeur_id, "vendeur")
-        return jsonify({"message": "Connexion réussie", "token": token, "redirect": "PageVendeur"}), 200
+        session["user_id"] = vendeur_id
+        session["username"] = username
+        session["role"] = "vendeur"
+        return jsonify({"message": "Connexion réussie", "token": token, "redirect": "/page_vendeur"}), 200
     else:
         return jsonify({"message": "Identifiants incorrects"}), 401
+
+@routes.route('/logout', methods=['POST'])
+def logout():
+    session.clear()
+    return jsonify({"message": "Déconnexion réussie", "redirect": "/"}), 200

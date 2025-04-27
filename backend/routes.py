@@ -11,7 +11,7 @@ CORS(routes)
 def inscription_client():
     data = request.json
 
-    if not all(key in data for key in ["username", "nom", "email", "mot_de_passe"]):
+    if not all(key in data for key in ["username", "nom", "email", "mot_de_passe", "telephone"]):
         return jsonify({"message": "Données incomplètes"}), 400
 
     username = data["username"]
@@ -50,14 +50,23 @@ def inscription_client():
 def inscription_vendeur():
     data = request.json
 
-    if not all(key in data for key in ["username", "nom", "email", "mot_de_passe", "description"]):
+    required_fields = ["username", "nom", "email", "mot_de_passe", "telephone",
+                        "nom_boutique", "adresse_boutique", "description_boutique",
+                        "livre", "frais_livraison", "retrait_magasin"]
+    if not all(key in data for key in required_fields):
         return jsonify({"message": "Données incomplètes"}), 400
 
     username = data["username"]
     nom = data["nom"]
     email = data["email"]
+    telephone = data["telephone"]
     mot_de_passe = hash_password(data["mot_de_passe"])
-    description = data["description"]
+    nom_boutique = data["nom_boutique"]
+    adresse_boutique = data["adresse_boutique"]
+    description_boutique = data["description_boutique"]
+    livre = data["livre"]
+    frais_livraison = data["frais_livraison"]
+    retrait_magasin = data["retrait_magasin"]
 
     try:
         conn = database()
@@ -67,12 +76,25 @@ def inscription_vendeur():
         if cursor.fetchone():
             return jsonify({"message": "Email ou nom d'utilisateur déjà utilisé"}), 400
 
-        cursor.execute("INSERT INTO vendeur (username, nom, email, mot_de_passe, description) VALUES (%s, %s, %s, %s, %s)",
-                        (username, nom, email, mot_de_passe, description))
+        cursor.execute(
+            "INSERT INTO vendeur (username, nom, email, mot_de_passe, telephone) VALUES (%s, %s, %s, %s, %s)",
+            (username, nom, email, mot_de_passe, telephone))
         conn.commit()
 
         cursor.execute("SELECT id FROM vendeur WHERE email = %s", (email,))
         vendeur_id = cursor.fetchone()[0]
+
+        # Insérer dans boutique
+        cursor.execute(
+            "INSERT INTO boutique (vendeur_id, nom_boutique, adresse, description) VALUES (%s, %s, %s, %s)",
+            (vendeur_id, nom_boutique, adresse_boutique, description_boutique))
+        
+        # Insérer dans livraison
+        cursor.execute(
+            "INSERT INTO livraison (vendeur_id, livre, frais_livraison, retrait_magasin) VALUES (%s, %s, %s, %s)",
+            (vendeur_id, livre, frais_livraison, retrait_magasin))
+
+        conn.commit()
 
         token = generate_token(vendeur_id, "vendeur")
 

@@ -2,7 +2,8 @@ import mysql.connector
 import bcrypt
 import jwt
 import datetime
-from flask import Flask, request, jsonify, session
+from datetime import datetime, timedelta
+from flask import Flask, request, jsonify, session,  current_app
 app = Flask(__name__)
 SECRET_KEY = "secret123"
 
@@ -16,6 +17,7 @@ def database():
         password="",
         database="vente_app"
     )
+    
 
 # Fonction pour hacher un mot de passe
 def hash_password(password):
@@ -33,6 +35,14 @@ def generate_token(user_id, role):
     )
 
 
+def verify_token(token):
+    try:
+        payload = jwt.decode(token, SECRET_KEY, algorithms=['HS256'])
+        return payload
+    except jwt.ExpiredSignatureError:
+        return None
+    except jwt.InvalidTokenError:
+        return None
 
 # Inscription Client
 @app.route('/inscription_vendeur', methods=['POST'])
@@ -136,6 +146,50 @@ def inscription_vendeur():
         conn.close()
 
 # Fonction pour vérifier le mot de passe d'un client
+import mysql.connector
+import bcrypt
+import jwt
+import datetime
+from datetime import datetime, timedelta
+
+# Clé secrète pour JWT
+SECRET_KEY = "secret123"  # À déplacer dans une variable d'environnement
+
+# Connexion à la base de données
+def database():
+    return mysql.connector.connect(
+        host="localhost",
+        user="root",
+        password="",
+        database="vente_app"
+    )
+
+# Fonction pour hacher un mot de passe
+def hash_password(password):
+    return bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
+
+# Fonction pour vérifier un mot de passe
+def check_password(stored_password, provided_password):
+    return bcrypt.checkpw(provided_password.encode('utf-8'), stored_password.encode('utf-8'))
+
+# Fonction pour générer un token JWT
+def generate_token(user_id, role):
+    return jwt.encode(
+        {"user_id": user_id, "role": role, "exp": datetime.utcnow() + timedelta(hours=3)},
+        SECRET_KEY, algorithm="HS256"
+    )
+
+# Fonction pour vérifier un token JWT
+def verify_token(token):
+    try:
+        payload = jwt.decode(token, SECRET_KEY, algorithms=['HS256'])
+        return payload
+    except jwt.ExpiredSignatureError:
+        return None
+    except jwt.InvalidTokenError:
+        return None
+
+# Fonction pour vérifier le mot de passe d'un client
 def connexion_client(username, mot_de_passe):
     try:
         conn = database()
@@ -186,7 +240,7 @@ def connexion_vendeur(username, mot_de_passe):
     finally:
         cursor.close()
         conn.close()
-
+        
 @app.route('/mdp_oublie_client', methods=['POST'])
 def mdp_oublie_client():
     data = request.json
@@ -251,6 +305,54 @@ def mdp_oublie_vendeur():
             return jsonify({"message": "Mot de passe modifié"}), 200
         else:
             return jsonify({"message": "L'email ne correspond pas"}), 404
+
+    except Exception as e:
+        return jsonify({"message": str(e)}), 500
+
+    finally:
+        cursor.close()
+        conn.close()
+
+def vendeur_info():
+    vendeur_id = session.get('user_id')  # ou récupérer depuis le token envoyé
+
+    if not vendeur_id:
+        return jsonify({"message": "Non connecté"}), 401
+
+    try:
+        conn = database()
+        cursor = conn.cursor(dictionary=True)
+
+        # Récupérer les infos personnelles
+        cursor.execute("SELECT id, username, nom, email, telephone FROM vendeur WHERE id = %s", (vendeur_id,))
+        vendeur = cursor.fetchone()
+
+        # Récupérer les infos boutique
+        cursor.execute("SELECT nom_boutique, adresse, description FROM boutique WHERE vendeur_id = %s", (vendeur_id,))
+        boutique = cursor.fetchone()
+
+        # Récupérer les infos livraison
+        cursor.execute("SELECT livre, frais_livraison, retrait_magasin FROM livraison WHERE vendeur_id = %s", (vendeur_id,))
+        livraison = cursor.fetchone()
+
+        if not vendeur or not boutique or not livraison:
+            return jsonify({"message": "Informations incomplètes"}), 404
+
+        response = {
+            "id": vendeur["id"],
+            "username": vendeur["username"],
+            "nom": vendeur["nom"],
+            "email": vendeur["email"],
+            "telephone": vendeur["telephone"],
+            "nomBoutique": boutique["nom_boutique"],
+            "adresse": boutique["adresse"],
+            "description": boutique["description"],
+            "livraisonDomicile": True if livraison["livre"] == "oui" else False,
+            "fraisLivraison": float(livraison["frais_livraison"]),
+            "retraitMagasin": True if livraison["retrait_magasin"] == "oui" else False
+        }
+
+        return jsonify(response), 200
 
     except Exception as e:
         return jsonify({"message": str(e)}), 500

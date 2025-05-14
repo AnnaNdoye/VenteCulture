@@ -248,7 +248,7 @@ def mdp_oublie_client():
     nouveau_mot_de_passe = data.get("nouveau_mot_de_passe")
 
     if not email or not nouveau_mot_de_passe:
-        return jsonify({"message": "Email ou nouveau mot de passe manquants"}), 400
+        return jsonify({"message": "Email ou nouveau mot de passe manquants. Veuillez réessayer"}), 400
 
     try:
         conn = database()
